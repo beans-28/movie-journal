@@ -5,25 +5,30 @@ ini_set('display_errors', 1);
 require_once 'config.php';
 require_once 'auth.php';
 
-// Require login to add movies
 requireLogin();
 
 $successMessage = '';
 $errorMessage = '';
 $userId = getCurrentUserId();
 
+$genresResult = $conn->query("SELECT genre_id, genre_name FROM genres ORDER BY genre_name");
+
+$directorsResult = $conn->query("SELECT director_id, director_name FROM directors ORDER BY director_name");
+
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $title = isset($_POST['movieTitle']) ? trim($_POST['movieTitle']) : '';
-    $genre = isset($_POST['movieGenre']) ? trim($_POST['movieGenre']) : '';
+    $genreId = isset($_POST['movieGenre']) ? intval($_POST['movieGenre']) : 0;
+    $directorId = isset($_POST['movieDirector']) ? intval($_POST['movieDirector']) : null;
+    $directorName = isset($_POST['newDirector']) ? trim($_POST['newDirector']) : '';
+    $releaseYear = isset($_POST['releaseYear']) ? intval($_POST['releaseYear']) : null;
     $rating = isset($_POST['movieRating']) ? intval($_POST['movieRating']) : 0;
     $dateWatched = isset($_POST['dateWatched']) ? $_POST['dateWatched'] : '';
     $review = isset($_POST['movieReview']) ? trim($_POST['movieReview']) : '';
     $posterUrl = isset($_POST['posterURL']) ? trim($_POST['posterURL']) : '';
     
-    // Validate required fields
     if (empty($title)) {
         $errorMessage = "Movie title is required.";
-    } elseif (empty($genre)) {
+    } elseif (empty($genreId)) {
         $errorMessage = "Genre is required.";
     } elseif (empty($rating) || $rating < 1 || $rating > 5) {
         $errorMessage = "Please select a valid rating (1-5).";
@@ -32,17 +37,45 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     } elseif (empty($review)) {
         $errorMessage = "Review is required.";
     } else {
-        // Prepare SQL statement with user_id
-        $stmt = $conn->prepare("INSERT INTO movies (user_id, title, genre, rating, date_watched, review, poster_url) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        $directorNameFinal = '';
+        if (!empty($directorName)) {
+            $directorNameFinal = $directorName;
+        } elseif (!empty($directorId)) {
+            $dirStmt = $conn->query("SELECT director_name FROM directors WHERE director_id = $directorId");
+            if ($dirStmt && $dirStmt->num_rows > 0) {
+                $directorNameFinal = $dirStmt->fetch_assoc()['director_name'];
+            }
+        }
+        
+        $genreStmt = $conn->query("SELECT genre_name FROM genres WHERE genre_id = $genreId");
+        $genreName = '';
+        if ($genreStmt && $genreStmt->num_rows > 0) {
+            $genreName = $genreStmt->fetch_assoc()['genre_name'];
+        }
+        
+        $stmt = $conn->prepare("CALL sp_add_review(?, ?, ?, ?, ?, ?, ?, ?, ?)");
         
         if ($stmt === false) {
             $errorMessage = "Error preparing statement: " . $conn->error;
         } else {
-            $stmt->bind_param("issssss", $userId, $title, $genre, $rating, $dateWatched, $review, $posterUrl);
+            $stmt->bind_param("isssissis", 
+                $userId,       
+                $title,           
+                $genreName,        
+                $directorNameFinal, 
+                $rating,           
+                $review,          
+                $dateWatched,      
+                $releaseYear,    
+                $posterUrl         
+            );
             
             if ($stmt->execute()) {
                 $successMessage = "Movie '$title' added successfully!";
-                $title = $genre = $rating = $dateWatched = $review = $posterUrl = '';
+                $title = $rating = $dateWatched = $review = $posterUrl = $releaseYear = '';
+                $directorId = $genreId = 0;
+                
+                $directorsResult = $conn->query("SELECT director_id, director_name FROM directors ORDER BY director_name");
             } else {
                 $errorMessage = "Error adding movie: " . $stmt->error;
             }
@@ -140,16 +173,42 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 <label for="movieGenre" class="form-label">GENRE</label>
                                 <select class="form-select" id="movieGenre" name="movieGenre" required>
                                     <option value="">Choose a genre...</option>
-                                    <option value="Action">Action</option>
-                                    <option value="Comedy">Comedy</option>
-                                    <option value="Drama">Drama</option>
-                                    <option value="Horror">Horror</option>
-                                    <option value="Sci-Fi">Sci-Fi</option>
-                                    <option value="Romance">Romance</option>
-                                    <option value="Thriller">Thriller</option>
-                                    <option value="Animation">Animation</option>
-                                    <option value="Documentary">Documentary</option>
+                                    <?php
+                                    if ($genresResult && $genresResult->num_rows > 0) {
+                                        while($genre = $genresResult->fetch_assoc()) {
+                                            echo '<option value="' . $genre['genre_id'] . '">' . htmlspecialchars($genre['genre_name']) . '</option>';
+                                        }
+                                    }
+                                    ?>
                                 </select>
+                            </div>
+
+                            <!-- Director Dropdown -->
+                            <div class="mb-3">
+                                <label for="movieDirector" class="form-label">DIRECTOR</label>
+                                <select class="form-select" id="movieDirector" name="movieDirector">
+                                    <option value="">Choose a director...</option>
+                                    <?php
+                                    if ($directorsResult && $directorsResult->num_rows > 0) {
+                                        while($director = $directorsResult->fetch_assoc()) {
+                                            echo '<option value="' . $director['director_id'] . '">' . htmlspecialchars($director['director_name']) . '</option>';
+                                        }
+                                    }
+                                    ?>
+                                </select>
+                            </div>
+
+                            <!-- New Director (Optional) -->
+                            <div class="mb-3">
+                                <label for="newDirector" class="form-label">OR ADD NEW DIRECTOR</label>
+                                <input type="text" class="form-control" id="newDirector" name="newDirector" placeholder="Enter new director name">
+                                <div class="form-text">Leave blank if you selected a director above</div>
+                            </div>
+
+                            <!-- Release Year -->
+                            <div class="mb-3">
+                                <label for="releaseYear" class="form-label">RELEASE YEAR (Optional)</label>
+                                <input type="number" class="form-control" id="releaseYear" name="releaseYear" placeholder="e.g., 2024" min="1900" max="2100">
                             </div>
 
                             <!-- Rating -->
@@ -218,7 +277,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     <!-- FOOTER -->
     <footer class="text-white text-center py-4 mt-5">
-        <p class="mb-0" style="color: #808080;">© 2025 Movie Journal • Group 10 - Activity 4</p>
+        <p class="mb-0" style="color: #808080;">© 2025 Movie Journal • Group 10 - Final Project</p>
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>

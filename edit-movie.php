@@ -5,7 +5,6 @@ ini_set('display_errors', 1);
 require_once 'config.php';
 require_once 'auth.php';
 
-// Require login
 requireLogin();
 
 $successMessage = '';
@@ -18,11 +17,10 @@ if (!isset($_GET['id']) || empty($_GET['id'])) {
     exit();
 }
 
-$movieId = intval($_GET['id']);
+$reviewId = intval($_GET['id']);
 
-// Verify movie belongs to current user
-$stmt = $conn->prepare("SELECT * FROM movies WHERE id = ? AND user_id = ?");
-$stmt->bind_param("ii", $movieId, $userId);
+$stmt = $conn->prepare("SELECT * FROM vw_user_movie_collection WHERE review_id = ? AND user_id = ?");
+$stmt->bind_param("ii", $reviewId, $userId);
 $stmt->execute();
 $result = $stmt->get_result();
 
@@ -34,9 +32,15 @@ if ($result->num_rows == 0) {
 $movie = $result->fetch_assoc();
 $stmt->close();
 
+$genresResult = $conn->query("SELECT genre_id, genre_name FROM genres ORDER BY genre_name");
+$directorsResult = $conn->query("SELECT director_id, director_name FROM directors ORDER BY director_name");
+
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $title = isset($_POST['movieTitle']) ? trim($_POST['movieTitle']) : '';
-    $genre = isset($_POST['movieGenre']) ? trim($_POST['movieGenre']) : '';
+    $genreId = isset($_POST['movieGenre']) ? intval($_POST['movieGenre']) : 0;
+    $directorId = isset($_POST['movieDirector']) ? intval($_POST['movieDirector']) : null;
+    $newDirector = isset($_POST['newDirector']) ? trim($_POST['newDirector']) : '';
+    $releaseYear = isset($_POST['releaseYear']) ? intval($_POST['releaseYear']) : null;
     $rating = isset($_POST['movieRating']) ? intval($_POST['movieRating']) : 0;
     $dateWatched = isset($_POST['dateWatched']) ? $_POST['dateWatched'] : '';
     $review = isset($_POST['movieReview']) ? trim($_POST['movieReview']) : '';
@@ -44,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     
     if (empty($title)) {
         $errorMessage = "Movie title is required.";
-    } elseif (empty($genre)) {
+    } elseif (empty($genreId)) {
         $errorMessage = "Genre is required.";
     } elseif (empty($rating) || $rating < 1 || $rating > 5) {
         $errorMessage = "Please select a valid rating (1-5).";
@@ -53,23 +57,49 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     } elseif (empty($review)) {
         $errorMessage = "Review is required.";
     } else {
-        // Update only if movie belongs to user
-        $stmt = $conn->prepare("UPDATE movies SET title=?, genre=?, rating=?, date_watched=?, review=?, poster_url=? WHERE id=? AND user_id=?");
+        $directorNameFinal = '';
+        if (!empty($newDirector)) {
+            $directorNameFinal = $newDirector;
+        } elseif (!empty($directorId)) {
+            $dirStmt = $conn->query("SELECT director_name FROM directors WHERE director_id = $directorId");
+            if ($dirStmt && $dirStmt->num_rows > 0) {
+                $directorNameFinal = $dirStmt->fetch_assoc()['director_name'];
+            }
+        }
+        
+    
+        $genreStmt = $conn->query("SELECT genre_name FROM genres WHERE genre_id = $genreId");
+        $genreName = '';
+        if ($genreStmt && $genreStmt->num_rows > 0) {
+            $genreName = $genreStmt->fetch_assoc()['genre_name'];
+        }
+        
+        $stmt = $conn->prepare("CALL sp_add_review(?, ?, ?, ?, ?, ?, ?, ?, ?)");
         
         if ($stmt === false) {
             $errorMessage = "Error preparing statement: " . $conn->error;
         } else {
-            $stmt->bind_param("ssisssii", $title, $genre, $rating, $dateWatched, $review, $posterUrl, $movieId, $userId);
+    
+            $stmt->bind_param("isssissis", 
+                $userId,          
+                $title,            
+                $genreName,        
+                $directorNameFinal, 
+                $rating,           
+                $review,           
+                $dateWatched,      
+                $releaseYear,     
+                $posterUrl        
+            );
             
             if ($stmt->execute()) {
                 $successMessage = "Movie '$title' updated successfully!";
-                // Refresh movie data
-                $movie['title'] = $title;
-                $movie['genre'] = $genre;
+                $movie['movie_title'] = $title;
                 $movie['rating'] = $rating;
                 $movie['date_watched'] = $dateWatched;
-                $movie['review'] = $review;
+                $movie['review_text'] = $review;
                 $movie['poster_url'] = $posterUrl;
+                $movie['release_year'] = $releaseYear;
             } else {
                 $errorMessage = "Error updating movie: " . $stmt->error;
             }
@@ -154,13 +184,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <div class="card shadow-lg">
                     <div class="card-body p-4">
                         
-                        <form method="POST" action="edit-movie.php?id=<?php echo $movieId; ?>">
+                        <form method="POST" action="edit-movie.php?id=<?php echo $reviewId; ?>">
                             
                             <!-- Movie Title -->
                             <div class="mb-3">
                                 <label for="movieTitle" class="form-label">MOVIE TITLE</label>
                                 <input type="text" class="form-control" id="movieTitle" name="movieTitle" 
-                                       value="<?php echo htmlspecialchars($movie['title']); ?>" required>
+                                       value="<?php echo htmlspecialchars($movie['movie_title']); ?>" required>
                             </div>
 
                             <!-- Genre Dropdown -->
@@ -168,17 +198,45 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 <label for="movieGenre" class="form-label">GENRE</label>
                                 <select class="form-select" id="movieGenre" name="movieGenre" required>
                                     <option value="">Choose a genre...</option>
-                                    <option value="Action" <?php echo ($movie['genre'] == 'Action') ? 'selected' : ''; ?>>Action</option>
-                                    <option value="Comedy" <?php echo ($movie['genre'] == 'Comedy') ? 'selected' : ''; ?>>Comedy</option>
-                                    <option value="Drama" <?php echo ($movie['genre'] == 'Drama') ? 'selected' : ''; ?>>Drama</option>
-                                    <option value="Horror" <?php echo ($movie['genre'] == 'Horror') ? 'selected' : ''; ?>>Horror</option>
-                                    <option value="Sci-Fi" <?php echo ($movie['genre'] == 'Sci-Fi') ? 'selected' : ''; ?>>Sci-Fi</option>
-                                    <option value="Romance" <?php echo ($movie['genre'] == 'Romance') ? 'selected' : ''; ?>>Romance</option>
-                                    <option value="Thriller" <?php echo ($movie['genre'] == 'Thriller') ? 'selected' : ''; ?>>Thriller</option>
-                                    <option value="Animation" <?php echo ($movie['genre'] == 'Animation') ? 'selected' : ''; ?>>Animation</option>
-                                    <option value="Documentary" <?php echo ($movie['genre'] == 'Documentary') ? 'selected' : ''; ?>>Documentary</option>
-                                    <option value="Crime" <?php echo ($movie['genre'] == 'Crime') ? 'selected' : ''; ?>>Crime</option>
+                                    <?php
+                                    if ($genresResult && $genresResult->num_rows > 0) {
+                                        while($genre = $genresResult->fetch_assoc()) {
+                                            $selected = ($genre['genre_name'] == $movie['genre_name']) ? 'selected' : '';
+                                            echo '<option value="' . $genre['genre_id'] . '" ' . $selected . '>' . htmlspecialchars($genre['genre_name']) . '</option>';
+                                        }
+                                    }
+                                    ?>
                                 </select>
+                            </div>
+
+                            <!-- Director Dropdown -->
+                            <div class="mb-3">
+                                <label for="movieDirector" class="form-label">DIRECTOR</label>
+                                <select class="form-select" id="movieDirector" name="movieDirector">
+                                    <option value="">Choose a director...</option>
+                                    <?php
+                                    if ($directorsResult && $directorsResult->num_rows > 0) {
+                                        while($director = $directorsResult->fetch_assoc()) {
+                                            $selected = ($director['director_name'] == $movie['director_name']) ? 'selected' : '';
+                                            echo '<option value="' . $director['director_id'] . '" ' . $selected . '>' . htmlspecialchars($director['director_name']) . '</option>';
+                                        }
+                                    }
+                                    ?>
+                                </select>
+                            </div>
+
+                            <!-- New Director -->
+                            <div class="mb-3">
+                                <label for="newDirector" class="form-label">OR ADD NEW DIRECTOR</label>
+                                <input type="text" class="form-control" id="newDirector" name="newDirector" placeholder="Enter new director name">
+                            </div>
+
+                            <!-- Release Year -->
+                            <div class="mb-3">
+                                <label for="releaseYear" class="form-label">RELEASE YEAR</label>
+                                <input type="number" class="form-control" id="releaseYear" name="releaseYear" 
+                                       value="<?php echo htmlspecialchars($movie['release_year'] ?? ''); ?>" 
+                                       min="1900" max="2100">
                             </div>
 
                             <!-- Rating -->
@@ -201,28 +259,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                        value="<?php echo htmlspecialchars($movie['date_watched']); ?>" required>
                             </div>
 
-                            <!-- Review (Textarea) -->
+                            <!-- Review -->
                             <div class="mb-3">
                                 <label for="movieReview" class="form-label">YOUR REVIEW</label>
-                                <textarea class="form-control" id="movieReview" name="movieReview" rows="4" required><?php echo htmlspecialchars($movie['review']); ?></textarea>
-                                <div class="form-text">Share what you loved, what surprised you, or why you'd recommend it.</div>
+                                <textarea class="form-control" id="movieReview" name="movieReview" rows="4" required><?php echo htmlspecialchars($movie['review_text']); ?></textarea>
                             </div>
 
-                            <!-- Poster URL (Optional) -->
+                            <!-- Poster URL -->
                             <div class="mb-4">
-                                <label for="posterURL" class="form-label">POSTER IMAGE URL (Optional)</label>
+                                <label for="posterURL" class="form-label">POSTER IMAGE URL</label>
                                 <input type="url" class="form-control" id="posterURL" name="posterURL" 
-                                       value="<?php echo htmlspecialchars($movie['poster_url']); ?>" 
-                                       placeholder="https://example.com/poster.jpg">
-                                <div class="form-text">
-                                    <strong>How to get a poster URL:</strong><br>
-                                    1. Google: "[Movie name] poster"<br>
-                                    2. Right-click on image → "Copy image address"<br>
-                                    3. Paste it here
-                                </div>
+                                       value="<?php echo htmlspecialchars($movie['poster_url']); ?>">
                             </div>
 
-                            <!-- Submit Buttons -->
+                            <!-- Buttons -->
                             <div class="d-grid gap-2">
                                 <button type="submit" class="btn btn-primary btn-lg">
                                     <i class="bi bi-save"></i> UPDATE MOVIE
@@ -230,7 +280,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 <a href="index.php" class="btn btn-outline-secondary">
                                     <i class="bi bi-x-circle"></i> CANCEL
                                 </a>
-                                <button type="button" class="btn btn-outline-danger" onclick="confirmDelete(<?php echo $movieId; ?>)">
+                                <button type="button" class="btn btn-outline-danger" onclick="confirmDelete(<?php echo $reviewId; ?>)">
                                     <i class="bi bi-trash"></i> DELETE MOVIE
                                 </button>
                             </div>
@@ -246,15 +296,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     <!-- FOOTER -->
     <footer class="text-white text-center py-4 mt-5">
-        <p class="mb-0" style="color: #808080;">© 2025 Movie Journal • Created for Activity 4</p>
+        <p class="mb-0" style="color: #808080;">© 2025 Movie Journal • Group 10 - Final Project</p>
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     
     <script>
-        function confirmDelete(movieId) {
+        function confirmDelete(reviewId) {
             if (confirm('Are you sure you want to delete this movie? This action cannot be undone.')) {
-                window.location.href = 'delete-movie.php?id=' + movieId;
+                window.location.href = 'delete-movie.php?id=' + reviewId;
             }
         }
     </script>

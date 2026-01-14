@@ -2,7 +2,6 @@
 require_once 'config.php';
 require_once 'auth.php';
 
-// Redirect if already logged in
 if (isLoggedIn()) {
     header("Location: index.php");
     exit();
@@ -20,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $errorMessage = "Password is required.";
     } else {
         // Check if user exists
-        $stmt = $conn->prepare("SELECT id, username, password FROM users WHERE username = ?");
+        $stmt = $conn->prepare("SELECT user_id, username, password FROM users WHERE username = ?");
         $stmt->bind_param("s", $username);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -32,8 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             
             // Verify password
             if (password_verify($password, $user['password'])) {
-                // Login successful
-                login($user['id'], $user['username']);
+                login($user['user_id'], $user['username']);
                 header("Location: index.php");
                 exit();
             } else {
@@ -144,7 +142,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     <!-- FOOTER -->
     <footer class="text-white text-center py-4 mt-5">
-        <p class="mb-0" style="color: #808080;">© 2025 Movie Journal • Group 10 - Activity 4</p>
+        <p class="mb-0" style="color: #808080;">© 2025 Movie Journal • Group 10 - Final Project</p>
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>

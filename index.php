@@ -2,13 +2,11 @@
 require_once 'config.php';
 require_once 'auth.php';
 
-// Require login to view
 requireLogin();
 
 $userId = getCurrentUserId();
 
-// Get only the logged-in user's movies
-$sql = "SELECT * FROM movies WHERE user_id = ? ORDER BY date_watched DESC";
+$sql = "SELECT * FROM vw_user_movie_collection WHERE user_id = ? ORDER BY date_watched DESC";
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("i", $userId);
 $stmt->execute();
@@ -244,6 +242,12 @@ $result = $stmt->get_result();
             border-radius: 20px;
             color: #d4af37;
         }
+
+        .movie-meta {
+            color: #999;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
     </style>
 </head>
 <body>
@@ -281,7 +285,7 @@ $result = $stmt->get_result();
         </div>
     </nav>
 
-    <!-- ABS CINEMA -->
+    <!-- ABSOLTUE CINEMA -->
     <div class="cinema-hero">
         <div class="hero-content">
             <img src="images/cinema.webp" alt="Absolute Cinema" class="cinema-meme">
@@ -328,7 +332,7 @@ $result = $stmt->get_result();
                     if (!empty($movie['poster_url'])) {
                         $posterUrl = $movie['poster_url'];
                     } else {
-                        $posterUrl = 'https://dummyimage.com/300x450/1a1a2e/d4af37.png&text=' . urlencode($movie['title']);
+                        $posterUrl = 'https://dummyimage.com/300x450/1a1a2e/d4af37.png&text=' . urlencode($movie['movie_title']);
                     }
             ?>
             
@@ -337,15 +341,23 @@ $result = $stmt->get_result();
                 <div class="card h-100 movie-card">
                     <img src="<?php echo htmlspecialchars($posterUrl); ?>" 
                          class="card-img-top" 
-                         alt="<?php echo htmlspecialchars($movie['title']); ?>"
+                         alt="<?php echo htmlspecialchars($movie['movie_title']); ?>"
                          onerror="this.onerror=null; this.src='https://dummyimage.com/300x450/1a1a2e/d4af37.png&text=Movie+Poster';">
                     <div class="card-body">
-                        <h5 class="card-title"><?php echo htmlspecialchars($movie['title']); ?></h5>
-                        <p class="card-text"><strong style="color: #d4af37;">Genre:</strong> <?php echo htmlspecialchars($movie['genre']); ?></p>
-                        <p class="card-text"><?php echo htmlspecialchars($movie['review']); ?></p>
+                        <h5 class="card-title"><?php echo htmlspecialchars($movie['movie_title']); ?></h5>
+                        <div class="movie-meta">
+                            <?php if (!empty($movie['director_name'])): ?>
+                                <i class="bi bi-person-fill"></i> <?php echo htmlspecialchars($movie['director_name']); ?><br>
+                            <?php endif; ?>
+                            <?php if (!empty($movie['release_year'])): ?>
+                                <i class="bi bi-calendar"></i> <?php echo $movie['release_year']; ?>
+                            <?php endif; ?>
+                        </div>
+                        <p class="card-text"><strong style="color: #d4af37;">Genre:</strong> <?php echo htmlspecialchars($movie['genre_name']); ?></p>
+                        <p class="card-text"><?php echo htmlspecialchars($movie['review_text']); ?></p>
                         <div class="d-flex justify-content-between align-items-center">
                             <span class="badge <?php echo $badgeClass; ?>"><?php echo $stars; ?> <?php echo $movie['rating']; ?>/5</span>
-                            <a href="edit-movie.php?id=<?php echo $movie['id']; ?>" class="btn btn-sm btn-outline-warning">
+                            <a href="edit-movie.php?id=<?php echo $movie['review_id']; ?>" class="btn btn-sm btn-outline-warning">
                                 <i class="bi bi-pencil-square"></i> Edit
                             </a>
                         </div>
@@ -370,7 +382,7 @@ $result = $stmt->get_result();
 
     <!-- FOOTER -->
     <footer class="text-white text-center py-4 mt-5">
-        <p class="mb-0" style="color: #808080;">© 2026 Movie Journal • Group 10 - Activity 4</p>
+        <p class="mb-0" style="color: #808080;">© 2026 Movie Journal • Group 10 - Final Project</p>
     </footer>
 
     <!-- Bootstrap 5 JavaScript -->

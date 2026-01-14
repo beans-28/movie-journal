@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $errorMessage = "Passwords do not match.";
     } else {
         // Check if username already exists
-        $stmt = $conn->prepare("SELECT id FROM users WHERE username = ?");
+        $stmt = $conn->prepare("SELECT user_id FROM users WHERE username = ?");
         $stmt->bind_param("s", $username);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -43,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $errorMessage = "Username already taken.";
         } else {
             // Check if email already exists
-            $stmt = $conn->prepare("SELECT id FROM users WHERE email = ?");
+            $stmt = $conn->prepare("SELECT user_id FROM users WHERE email = ?");
             $stmt->bind_param("s", $email);
             $stmt->execute();
             $result = $stmt->get_result();
@@ -190,7 +190,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     <!-- FOOTER -->
     <footer class="text-white text-center py-4 mt-5">
-        <p class="mb-0" style="color: #808080;">© 2025 Movie Journal • Group 10 - Activity 4</p>
+        <p class="mb-0" style="color: #808080;">© 2025 Movie Journal • Group 10 - Final Project</p>
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>

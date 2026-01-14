@@ -2,7 +2,6 @@
 require_once 'config.php';
 require_once 'auth.php';
 
-// Require login
 requireLogin();
 
 $userId = getCurrentUserId();
@@ -10,32 +9,30 @@ $moviesPerPage = 10;
 $currentPage = isset($_GET['page']) ? intval($_GET['page']) : 1;
 $offset = ($currentPage - 1) * $moviesPerPage;
 
-// Get total movies for current user
-$totalResult = $conn->query("SELECT COUNT(*) as total FROM movies WHERE user_id = $userId");
+$totalResult = $conn->query("SELECT COUNT(*) as total FROM user_reviews WHERE user_id = $userId");
 $totalMovies = $totalResult->fetch_assoc()['total'];
 $totalPages = ceil($totalMovies / $moviesPerPage);
 
-// Get user's movies
-$sql = "SELECT * FROM movies WHERE user_id = ? ORDER BY rating DESC, date_watched DESC LIMIT ? OFFSET ?";
+$sql = "SELECT * FROM vw_user_movie_collection 
+        WHERE user_id = ? 
+        ORDER BY rating DESC, date_watched DESC 
+        LIMIT ? OFFSET ?";
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("iii", $userId, $moviesPerPage, $offset);
 $stmt->execute();
 $result = $stmt->get_result();
 
-// Get stats for current user
-$statsResult = $conn->query("SELECT 
-    COUNT(*) as total_movies,
-    AVG(rating) as avg_rating,
-    genre,
-    COUNT(genre) as genre_count
-    FROM movies 
-    WHERE user_id = $userId
-    GROUP BY genre 
-    ORDER BY genre_count DESC 
-    LIMIT 1");
+$statsStmt = $conn->prepare("CALL sp_get_user_stats(?)");
+$statsStmt->bind_param("i", $userId);
+$statsStmt->execute();
+$statsResult = $statsStmt->get_result();
 $stats = $statsResult->fetch_assoc();
-$avgRating = $totalMovies > 0 ? number_format($stats['avg_rating'], 1) : '0.0';
-$favoriteGenre = $stats['genre'] ?? 'N/A';
+$statsStmt->close();
+
+$conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+
+$avgRating = $totalMovies > 0 ? number_format($stats['avg_rating'] ?? 0, 1) : '0.0';
+$favoriteGenre = $stats['favorite_genre'] ?? 'N/A';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -85,7 +82,7 @@ $favoriteGenre = $stats['genre'] ?? 'N/A';
 
     <!-- MAIN CONTENT -->
     <div class="container mt-5 pt-3">
-        <h1 class="text-center mb-2"><i class="bi bi-trophy"></i> CRITICS' CHOICE</h1>
+        <h1 class="text-center mb-2"><i class="bi bi-trophy"></i> MY CRITICS' CHOICE</h1>
         <p class="text-center mb-5" style="color: #808080; font-style: italic;">My highest-rated cinematic masterpieces</p>
 
         <!-- TABLE WRAPPER -->
@@ -99,6 +96,7 @@ $favoriteGenre = $stats['genre'] ?? 'N/A';
                             <tr>
                                 <th scope="col" style="width: 60px;">#</th>
                                 <th scope="col">Title</th>
+                                <th scope="col">Director</th>
                                 <th scope="col">Genre</th>
                                 <th scope="col">Rating</th>
                                 <th scope="col">Date Watched</th>
@@ -122,17 +120,18 @@ $favoriteGenre = $stats['genre'] ?? 'N/A';
                                     
                                     $stars = str_repeat('★', $movie['rating']) . str_repeat('☆', 5 - $movie['rating']);
                                     
-                                    $dateFormatted = date('M d, Y', strtotime($movie['date_watched']));
+                                    $dateFormatted = !empty($movie['date_watched']) ? date('M d, Y', strtotime($movie['date_watched'])) : 'Not set';
                             ?>
                             
                             <tr>
                                 <th scope="row"><?php echo $rowNumber; ?></th>
-                                <td><?php echo htmlspecialchars($movie['title']); ?></td>
-                                <td><?php echo htmlspecialchars($movie['genre']); ?></td>
+                                <td><?php echo htmlspecialchars($movie['movie_title']); ?></td>
+                                <td><?php echo htmlspecialchars($movie['director_name'] ?? 'Unknown'); ?></td>
+                                <td><?php echo htmlspecialchars($movie['genre_name']); ?></td>
                                 <td><span class="badge <?php echo $badgeClass; ?>"><?php echo $stars; ?></span></td>
-                                <td><?php echo $dateFormatted; ?></td>
+                                <td><?php echo !empty($movie['date_watched']) ? date('M d, Y', strtotime($movie['date_watched'])) : 'Not set'; ?></td>
                                 <td>
-                                    <a href="edit-movie.php?id=<?php echo $movie['id']; ?>" class="btn btn-sm btn-outline-warning" title="Edit">
+                                    <a href="edit-movie.php?id=<?php echo $movie['review_id']; ?>" class="btn btn-sm btn-outline-warning" title="Edit">
                                         <i class="bi bi-pencil-square"></i>
                                     </a>
                                 </td>
@@ -142,7 +141,7 @@ $favoriteGenre = $stats['genre'] ?? 'N/A';
                                     $rowNumber++;
                                 }
                             } else {
-                                echo '<tr><td colspan="6" class="text-center" style="color: #808080;">No movies found. <a href="add-movie.php" style="color: #d4af37;">Add your first movie!</a></td></tr>';
+                                echo '<tr><td colspan="7" class="text-center" style="color: #808080;">No movies found. <a href="add-movie.php" style="color: #d4af37;">Add your first movie!</a></td></tr>';
                             }
                             ?>
 
@@ -209,7 +208,7 @@ $favoriteGenre = $stats['genre'] ?? 'N/A';
 
     <!-- FOOTER -->
     <footer class="text-white text-center py-4 mt-5">
-        <p class="mb-0" style="color: #808080;">© 2025 Movie Journal • Group 10 - Activity 4</p>
+        <p class="mb-0" style="color: #808080;">© 2025 Movie Journal • Group 10 - Final Project</p>
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
