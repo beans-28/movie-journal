@@ -17,7 +17,7 @@ $result = $stmt->get_result();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Movie Journal - My Library</title>
+    <title>4th Wall Movie Journal - My Library</title>
     
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -255,7 +255,7 @@ $result = $stmt->get_result();
     <!-- NAVBAR -->
     <nav class="navbar navbar-expand-lg navbar-dark">
         <div class="container-fluid">
-            <a class="navbar-brand" href="index.php"><i class="bi bi-film"></i> MOVIE JOURNAL</a>
+            <a class="navbar-brand" href="index.php"><i class="bi bi-film"></i> 4TH WALL MOVIE JOURNAL</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -382,7 +382,7 @@ $result = $stmt->get_result();
 
     <!-- FOOTER -->
     <footer class="text-white text-center py-4 mt-5">
-        <p class="mb-0" style="color: #808080;">© 2026 Movie Journal • Group 10 - Final Project</p>
+        <p class="mb-0" style="color: #808080;">© 2026 4th Wall • Group 10 - Final Project</p>
     </footer>
 
     <!-- Bootstrap 5 JavaScript -->

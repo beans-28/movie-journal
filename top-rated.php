@@ -39,7 +39,7 @@ $favoriteGenre = $stats['favorite_genre'] ?? 'N/A';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Top Rated Movies - Movie Journal</title>
+    <title>Top Rated Movies - 4th Wall Movie Journal</title>
     
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
@@ -50,7 +50,7 @@ $favoriteGenre = $stats['favorite_genre'] ?? 'N/A';
     <!-- NAVBAR -->
     <nav class="navbar navbar-expand-lg navbar-dark">
         <div class="container-fluid">
-            <a class="navbar-brand" href="index.php"><i class="bi bi-film"></i> MOVIE JOURNAL</a>
+            <a class="navbar-brand" href="index.php"><i class="bi bi-film"></i> 4TH WALL MOVIE JOURNAL</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -208,7 +208,7 @@ $favoriteGenre = $stats['favorite_genre'] ?? 'N/A';
 
     <!-- FOOTER -->
     <footer class="text-white text-center py-4 mt-5">
-        <p class="mb-0" style="color: #808080;">© 2025 Movie Journal • Group 10 - Final Project</p>
+        <p class="mb-0" style="color: #808080;">© 2025 4th Wall • Group 10 - Final Project</p>
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>

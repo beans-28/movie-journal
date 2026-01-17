@@ -67,44 +67,49 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
         }
         
-    
         $genreStmt = $conn->query("SELECT genre_name FROM genres WHERE genre_id = $genreId");
         $genreName = '';
         if ($genreStmt && $genreStmt->num_rows > 0) {
             $genreName = $genreStmt->fetch_assoc()['genre_name'];
         }
         
-        $stmt = $conn->prepare("CALL sp_add_review(?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt = $conn->prepare("CALL sp_update_review(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         
         if ($stmt === false) {
             $errorMessage = "Error preparing statement: " . $conn->error;
         } else {
-    
-            $stmt->bind_param("isssissis", 
-                $userId,          
-                $title,            
-                $genreName,        
+            $stmt->bind_param("iississsis", 
+                $reviewId,        
+                $userId,           
+                $title,           
+                $genreName,      
                 $directorNameFinal, 
                 $rating,           
-                $review,           
-                $dateWatched,      
-                $releaseYear,     
+                $review,         
+                $dateWatched,     
+                $releaseYear,      
                 $posterUrl        
             );
             
             if ($stmt->execute()) {
                 $successMessage = "Movie '$title' updated successfully!";
-                $movie['movie_title'] = $title;
-                $movie['rating'] = $rating;
-                $movie['date_watched'] = $dateWatched;
-                $movie['review_text'] = $review;
-                $movie['poster_url'] = $posterUrl;
-                $movie['release_year'] = $releaseYear;
+            
+                $stmt->close();
+                
+                $stmt = $conn->prepare("SELECT * FROM vw_user_movie_collection WHERE review_id = ? AND user_id = ?");
+                $stmt->bind_param("ii", $reviewId, $userId);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                $movie = $result->fetch_assoc();
+                $stmt->close();
+                
+            
+                $genresResult = $conn->query("SELECT genre_id, genre_name FROM genres ORDER BY genre_name");
+                $directorsResult = $conn->query("SELECT director_id, director_name FROM directors ORDER BY director_name");
             } else {
                 $errorMessage = "Error updating movie: " . $stmt->error;
+                $stmt->close();
             }
-            
-            $stmt->close();
         }
     }
 }
@@ -114,7 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Edit Movie - Movie Journal</title>
+    <title>Edit Movie - 4th Wall Movie Journal</title>
     
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
@@ -125,7 +130,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <!-- NAVBAR -->
     <nav class="navbar navbar-expand-lg navbar-dark">
         <div class="container-fluid">
-            <a class="navbar-brand" href="index.php"><i class="bi bi-film"></i> MOVIE JOURNAL</a>
+            <a class="navbar-brand" href="index.php"><i class="bi bi-film"></i> 4TH WALL MOVIE JOURNAL</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -166,7 +171,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <!-- SUCCESS ALERT -->
                 <?php if (!empty($successMessage)): ?>
                 <div class="alert alert-success alert-dismissible fade show" role="alert">
-                    <strong>✓ Success!</strong> <?php echo $successMessage; ?>
+                    <strong><i class="bi bi-check-circle"></i> Success!</strong> <?php echo $successMessage; ?>
                     <a href="index.php" class="alert-link">View all movies</a>
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
@@ -175,7 +180,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <!-- ERROR ALERT -->
                 <?php if (!empty($errorMessage)): ?>
                 <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                    <strong>✗ Error!</strong> <?php echo $errorMessage; ?>
+                    <strong><i class="bi bi-exclamation-triangle"></i> Error!</strong> <?php echo $errorMessage; ?>
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
                 <?php endif; ?>
@@ -229,14 +234,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             <div class="mb-3">
                                 <label for="newDirector" class="form-label">OR ADD NEW DIRECTOR</label>
                                 <input type="text" class="form-control" id="newDirector" name="newDirector" placeholder="Enter new director name">
+                                <div class="form-text">Leave blank if you selected a director above</div>
                             </div>
 
                             <!-- Release Year -->
                             <div class="mb-3">
-                                <label for="releaseYear" class="form-label">RELEASE YEAR</label>
+                                <label for="releaseYear" class="form-label">RELEASE YEAR (Optional)</label>
                                 <input type="number" class="form-control" id="releaseYear" name="releaseYear" 
                                        value="<?php echo htmlspecialchars($movie['release_year'] ?? ''); ?>" 
-                                       min="1900" max="2100">
+                                       min="1900" max="2100" placeholder="e.g., 2024">
                             </div>
 
                             <!-- Rating -->
@@ -262,14 +268,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             <!-- Review -->
                             <div class="mb-3">
                                 <label for="movieReview" class="form-label">YOUR REVIEW</label>
-                                <textarea class="form-control" id="movieReview" name="movieReview" rows="4" required><?php echo htmlspecialchars($movie['review_text']); ?></textarea>
+                                <textarea class="form-control" id="movieReview" name="movieReview" rows="4" 
+                                          placeholder="Write your thoughts about the movie..." required><?php echo htmlspecialchars($movie['review_text']); ?></textarea>
+                                <div class="form-text">Share what you loved, what surprised you, or why you'd recommend it.</div>
                             </div>
 
                             <!-- Poster URL -->
                             <div class="mb-4">
-                                <label for="posterURL" class="form-label">POSTER IMAGE URL</label>
+                                <label for="posterURL" class="form-label">POSTER IMAGE URL (Optional)</label>
                                 <input type="url" class="form-control" id="posterURL" name="posterURL" 
-                                       value="<?php echo htmlspecialchars($movie['poster_url']); ?>">
+                                       value="<?php echo htmlspecialchars($movie['poster_url'] ?? ''); ?>"
+                                       placeholder="https://example.com/poster.jpg">
+                                <div class="form-text">
+                                    <strong>How to get a poster URL:</strong><br>
+                                    1. Google: "[Movie name] poster"<br>
+                                    2. Right-click on image → "Copy image address"<br>
+                                    3. Paste it here<br>
+                                    <em>Tip: Look for images from IMDb, TheMovieDB, or official sources</em>
+                                </div>
                             </div>
 
                             <!-- Buttons -->
@@ -290,13 +306,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     </div>
                 </div>
 
+                <!-- INFO SECTION -->
+                <div class="alert alert-info mt-4" role="alert">
+                    <h5 class="alert-heading"><i class="bi bi-lightbulb"></i> Editing Tip</h5>
+                    <p class="mb-0">You can update any details about this movie. Changes will be saved to your existing review.</p>
+                </div>
+
             </div>
         </div>
     </div>
 
     <!-- FOOTER -->
     <footer class="text-white text-center py-4 mt-5">
-        <p class="mb-0" style="color: #808080;">© 2025 Movie Journal • Group 10 - Final Project</p>
+        <p class="mb-0" style="color: #808080;">© 2025 4th Wall • Group 10 - Final Project</p>
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
